@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THE SYSTEM: Shadow Monarch Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- DESIGN TOKENS --- */
+        :root {
+            --system-blue: #00f2ff;     /* Classic Solo Leveling neon blue */
+            --system-bg: rgba(5, 12, 20, 0.95); /* Deep translucent navy */
+            --penalty-red: #ff0033;     /* Aggressive red for failure states */
+            --level-purple: #bc13fe;    /* Monarch purple for extraction */
+            --shadow-black: #050505;    /* Deep void black */
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            background: var(--shadow-black);
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden; /* Prevents scrollbars during animations */
+        }
+
+        /* --- MAIN UI WINDOW --- */
+        .system-window {
+            width: 450px; 
+            background: var(--system-bg);
+            border: 2px solid var(--system-blue);
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
+            padding: 30px; 
+            position: relative;
+            /* clip-path creates the sharp, non-rectangular "Hunter" window edges */
+            clip-path: polygon(0 6%, 6% 0, 94% 0, 100% 6%, 100% 94%, 94% 100%, 6% 100%, 0 94%);
+            z-index: 5;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            color: var(--system-blue);
+            text-shadow: 0 0 10px var(--system-blue);
+            border-bottom: 1px solid var(--system-blue);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        /* --- PROGRESS BAR STYLING --- */
+        .bar-bg { width: 100%; height: 10px; background: rgba(0,242,255,0.1); border: 1px solid var(--system-blue); margin: 20px 0; }
+        #bar-fill { 
+            height: 100%; width: 0%; 
+            background: var(--system-blue); 
+            box-shadow: 0 0 15px var(--system-blue); 
+            transition: 0.6s ease; /* Smooth filling effect */
+        }
+        
+        /* --- QUEST LIST ITEMS --- */
+        ul { list-style: none; padding: 0; }
+        li {
+            background: rgba(255,255,255,0.03); 
+            margin-bottom: 8px; 
+            padding: 15px;
+            border-left: 3px solid transparent; 
+            cursor: pointer; 
+            transition: 0.2s;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        li:hover { background: rgba(0, 242, 255, 0.08); border-left-color: var(--system-blue); }
+        li.completed { opacity: 0.4; border-left-color: #444; text-decoration: line-through; }
+
+        /* --- SYSTEM OVERLAYS (MODALS) --- */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; justify-content: center; align-items: center;
+            z-index: 1000; flex-direction: column; text-align: center;
+            backdrop-filter: blur(12px); /* Glassmorphism effect */
+            background: rgba(0,0,0,0.85);
+        }
+
+        /* --- SYSTEM BUTTONS --- */
+        button {
+            background: rgba(0, 0, 0, 0.7);
+            color: var(--system-blue);
+            border: 2px solid var(--system-blue);
+            font-family: 'Orbitron', sans-serif;
+            padding: 12px 45px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            /* Trapezoidal shape for a custom HUD feel */
+            clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
+            margin-top: 25px;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background: var(--system-blue);
+            color: black;
+            box-shadow: 0 0 35px var(--system-blue);
+            transform: scale(1.05);
+        }
+
+        /* --- ANIMATIONS --- */
+        .huge-text { font-family: 'Orbitron'; font-size: 3.5rem; margin: 0; letter-spacing: 5px; }
+        .shake-anim { animation: shake 0.2s infinite; }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0,0); }
+            25% { transform: translate(4px, 4px); }
+            75% { transform: translate(-4px, -4px); }
+        }
+
+        #shadow-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div class="system-window" id="main-ui">
+    <h1>[DAILY QUEST: BECOME THE MONARCH]</h1>
+    <div class="bar-bg"><div id="bar-fill"></div></div>
+    <ul id="quest-list"></ul>
+    <p style="color: #ff4d4d; font-size: 0.7rem; text-align: center; letter-spacing: 1px; margin-top: 15px;">
+        ⚠️ WARNING: SYSTEM IS MONITORING YOUR ACTIVITY.
+    </p>
+</div>
+
+<div id="level-up-modal" class="overlay">
+    <canvas id="shadow-canvas"></canvas> <div id="extraction-ui" style="z-index: 1001;">
+        <h2 id="status-heading" class="huge-text" style="color: var(--level-purple);">QUEST CLEARED</h2>
+        <p id="extraction-msg" style="font-size: 1.2rem; margin: 20px 0;">THE SHADOWS AWAIT YOUR COMMAND.</p>
+        <button id="arise-btn" onclick="startExtraction()">ARISE</button>
+    </div>
+</div>
+
+<div id="penalty-modal" class="overlay">
+    <h2 class="huge-text shake-anim" style="color: var(--penalty-red);">PENALTY TRIGGERED</h2>
+    <p style="font-size: 1.2rem; margin: 20px 0;">INACTIVITY DETECTED. YOU HAVE FAILED THE QUEST.</p>
+    <button onclick="location.reload()">RE-ENTER SYSTEM</button>
+</div>
+
+<script>
+    // 1. DATA: Our Quest Array
+    const quests = [
+        { id: 1, text: "Push-ups: 100/100", xp: 100 },
+        { id: 2, text: "Code: 2 Hours", xp: 300 },
+        { id: 3, text: "Run: 10KM", xp: 200 }
+    ];
+
+    let completedIds = [];
+    // 2. TIMER: Trigger penalty after 20 seconds of no interaction
+    let penaltyTimer = setTimeout(triggerPenalty, 20000); 
+
+    // Initialize the list on page load
+    function init() {
+        const list = document.getElementById('quest-list');
+        list.innerHTML = quests.map(q => `
+            <li id="q-${q.id}" onclick="toggleQuest(${q.id})">
+                <span>${q.text}</span>
+                <span style="color:var(--system-blue)">+${q.xp}XP</span>
+            </li>
+        `).join('');
+    }
+
+    // Handle clicking on a task
+    function toggleQuest(id) {
+        clearTimeout(penaltyTimer); // Action detected! Clear the penalty threat.
+        const el = document.getElementById(`q-${id}`);
+        
+        if (completedIds.includes(id)) {
+            completedIds = completedIds.filter(i => i !== id);
+            el.classList.remove('completed');
+        } else {
+            completedIds.push(id);
+            el.classList.add('completed');
+        }
+
+        // Calculate progress percentage
+        const percent = Math.round((completedIds.length / quests.length) * 100);
+        document.getElementById('bar-fill').style.width = percent + '%';
+        
+        // Check if quest is fully complete
+        if (percent === 100) {
+            setTimeout(triggerLevelUp, 500);
+        }
+    }
+
+    function triggerLevelUp() {
+        document.getElementById('level-up-modal').style.display = 'flex';
+    }
+
+    function triggerPenalty() {
+        if (completedIds.length === 0) {
+            document.getElementById('penalty-modal').style.display = 'flex';
+        }
+    }
+
+    // --- 3. SHADOW EXTRACTION ENGINE (Canvas Particle Logic) ---
+    function startExtraction() {
+        const btn = document.getElementById('arise-btn');
+        const heading = document.getElementById('status-heading');
+        const msg = document.getElementById('extraction-msg');
+        const canvas = document.getElementById('shadow-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Updates for the "Extraction" phase
+        btn.style.display = 'none';
+        heading.innerText = "EXTRACTING...";
+        heading.style.color = "#00f2ff";
+        msg.innerText = "MANA CONCENTRATION INCREASING...";
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let particles = [];
+        
+        // Particle blueprint
+        class ShadowWisp {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + 50; // Start below the screen
+                this.size = Math.random() * 5 + 2;
+                this.speedY = Math.random() * 3 + 1;
+                this.opacity = 1;
+            }
+            update() {
+                this.y -= this.speedY; // Move upwards
+                this.x += Math.sin(this.y * 0.05) * 2; // Sine wave for "smoky" drift
+                this.opacity -= 0.005; // Fade out over time
+            }
+            draw() {
+                ctx.fillStyle = `rgba(0, 242, 255, ${this.opacity})`;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00f2ff';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // The animation loop
+        function animate() {
+            // Semi-transparent clear creates a "trailing" motion blur effect
+            ctx.fillStyle = 'rgba(0,0,0,0.15)'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Create new particles until cap is reached
+            if (particles.length < 100) particles.push(new ShadowWisp());
+            
+            particles.forEach((p, i) => {
+                p.update(); 
+                p.draw();
+                // Remove invisible particles for performance
+                if (p.opacity <= 0) particles.splice(i, 1);
+            });
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // Final Success State
+        setTimeout(() => {
+            heading.innerText = "SUCCESS";
+            msg.innerText = "NEW SHADOW SOLDIER ADDED TO ARMY.";
+            heading.style.textShadow = "0 0 30px #00f2ff";
+            // Refresh page to reset the system loop after 3.5s
+            setTimeout(() => location.reload(), 3500);
+        }, 5000);
+    }
+
+    // Kick off the script
+    init();
+</script>
+</body>
+</html>
